@@ -107,13 +107,21 @@ echo "✅ Environment file created successfully at $PROJECT_DIR/backend/.env"
 # ------------------------------------------------------------------------------
 # STEP 3: Adjust Docker Compose Ports for Host Coexistence
 # ------------------------------------------------------------------------------
-echo "⚙️  Optimizing docker-compose.yml for port 8080..."
+echo "⚙️  Checking for a free port on your VPS..."
 
-# Update docker-compose.yml to use port 8080:80 to avoid conflicts with existing sites
-sed -i 's/"80:80"/"8080:80"/g' "$PROJECT_DIR/docker-compose.yml"
-sed -i 's/"443:443"/"8443:443"/g' "$PROJECT_DIR/docker-compose.yml"
+# Start scanning for free port from 8080 onwards
+PORT=8080
+while ss -tuln | grep -q ":$PORT " || lsof -i :$PORT &>/dev/null; do
+    echo "⚠️  Port $PORT is already in use by another website/service. Scanning next port..."
+    PORT=$((PORT + 1))
+done
 
-echo "✅ Port mapping configured: Host Port 8080 -> Container Nginx Port 80."
+echo "🟢 Found free port: $PORT"
+
+# Update docker-compose.yml to use the discovered free port (supports multiple runs)
+sed -ri 's/- "[0-9]+:80"/- "'"$PORT"':80"/g' "$PROJECT_DIR/docker-compose.yml"
+
+echo "✅ Port mapping updated in docker-compose.yml to use: Host Port $PORT -> Container Nginx Port 80."
 
 # ------------------------------------------------------------------------------
 # STEP 4: Configure Main Host VPS Nginx Virtual Host
@@ -129,7 +137,7 @@ server {
     client_max_body_size 10M;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:$PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
