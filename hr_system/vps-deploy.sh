@@ -107,19 +107,26 @@ echo "✅ Environment file created successfully at $PROJECT_DIR/backend/.env"
 # ------------------------------------------------------------------------------
 # STEP 3: Adjust Docker Compose Ports for Host Coexistence
 # ------------------------------------------------------------------------------
-echo "⚙️  Checking for a free port on your VPS..."
-
-# Start scanning for free port from 8080 onwards
-PORT=8080
-while ss -tuln | grep -q ":$PORT " || lsof -i :$PORT &>/dev/null; do
-    echo "⚠️  Port $PORT is already in use by another website/service. Scanning next port..."
-    PORT=$((PORT + 1))
-done
+# Start scanning for free port from 8080 onwards using python socket checking
+PORT=$(python3 -c '
+import socket
+port = 8080
+while True:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind(("0.0.0.0", port))
+        s.close()
+        break
+    except socket.error:
+        port += 1
+print(port)
+')
 
 echo "🟢 Found free port: $PORT"
 
 # Update docker-compose.yml to use the discovered free port (supports multiple runs)
-sed -ri 's/- "[0-9]+:80"/- "'"$PORT"':80"/g' "$PROJECT_DIR/docker-compose.yml"
+python3 -c "import re; f=open('$PROJECT_DIR/docker-compose.yml','r'); content=f.read(); f.close(); content=re.sub(r'- \"\d+:80\"', '- \"$PORT:80\"', content); f=open('$PROJECT_DIR/docker-compose.yml','w'); f.write(content); f.close()"
 
 echo "✅ Port mapping updated in docker-compose.yml to use: Host Port $PORT -> Container Nginx Port 80."
 
