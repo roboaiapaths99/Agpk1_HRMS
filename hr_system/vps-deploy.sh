@@ -63,17 +63,9 @@ echo "📝 Configuring environment files..."
 JWT_SECRET=$(openssl rand -hex 32)
 echo "🔑 Auto-generated a secure JWT Secret Key: $JWT_SECRET"
 
-# Ask user for MongoDB Atlas connection string
-echo "----------------------------------------------------------------------"
-echo "👉 Please enter your MongoDB Atlas connection string."
-echo "Example: mongodb+srv://admin:pass@cluster.mongodb.net/hr_system?retryWrites=true&w=majority"
-echo "----------------------------------------------------------------------"
-read -p "Connection String: " MONGO_URL
-
-if [ -z "$MONGO_URL" ]; then
-    echo "❌ Error: MongoDB URL cannot be empty."
-    exit 1
-fi
+# Pre-configured MongoDB Atlas connection
+MONGO_URL="mongodb+srv://bhaskarjoshi900_db_user:nY5ko5WKwdrKLV0C@cluster0.e3qbz3j.mongodb.net/?appName=Cluster0"
+DB_NAME="autoseo"
 
 # Write backend/.env
 cat <<EOF > "$PROJECT_DIR/backend/.env"
@@ -89,7 +81,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 
 # Database
 MONGODB_URL="$MONGO_URL"
-DATABASE_NAME="hr_system"
+DATABASE_NAME="$DB_NAME"
 
 # Redis
 REDIS_URL="redis://redis:6379"
@@ -107,13 +99,15 @@ echo "✅ Environment file created successfully at $PROJECT_DIR/backend/.env"
 # ------------------------------------------------------------------------------
 # STEP 3: Adjust Docker Compose Ports for Host Coexistence
 # ------------------------------------------------------------------------------
-# Start scanning for free port from 8080 onwards using python socket checking
+# Start scanning for free port from 9000 onwards using python socket checking
+# We start at 9000 to safely bypass common ports used by the other 7-8 sites on this VPS.
 PORT=$(python3 -c '
 import socket
-port = 8080
+port = 9000
 while True:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # Note: Intentionally NOT using SO_REUSEADDR so that we properly detect 
+    # ports in TIME_WAIT or CLOSE_WAIT that Docker would fail to bind to.
     try:
         s.bind(("0.0.0.0", port))
         s.close()
